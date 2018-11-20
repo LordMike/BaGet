@@ -42,7 +42,7 @@ namespace BaGet.Extensions
             }
 
             services.AddTransient<IPackageService, PackageService>();
-            services.AddTransient<IIndexingService, IndexingService>();
+            services.AddTransient<IPackageIndexingService, PackageIndexingService>();
             services.AddTransient<IPackageDeletionService, PackageDeletionService>();
             services.AddMirrorServices();
 
