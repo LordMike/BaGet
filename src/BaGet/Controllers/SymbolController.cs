@@ -12,15 +12,18 @@ namespace BaGet.Controllers
     {
         private readonly IAuthenticationService _authentication;
         private readonly ISymbolIndexingService _indexer;
+        private readonly ISymbolStorageService _storage;
         private readonly ILogger<SymbolController> _logger;
 
         public SymbolController(
             IAuthenticationService authentication,
             ISymbolIndexingService indexer,
+            ISymbolStorageService storage,
             ILogger<SymbolController> logger)
         {
             _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
             _indexer = indexer ?? throw new ArgumentNullException(nameof(indexer));
+            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -67,6 +70,15 @@ namespace BaGet.Controllers
 
                 HttpContext.Response.StatusCode = 500;
             }
+        }
+
+        public async Task<IActionResult> Get(string pdbName, string pdbSignature)
+        {
+            // TODO: There should be some validations that this pdb exists...
+            var key = $"{pdbName}/{pdbSignature}/{pdbName}";
+            var pdbStream = await _storage.GetPortablePdbContentStreamAsync(key);
+
+            return File(pdbStream, "application/octet-stream");
         }
     }
 }

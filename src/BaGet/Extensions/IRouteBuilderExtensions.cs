@@ -45,6 +45,11 @@ namespace BaGet.Extensions
                 defaults: new { controller = "Symbol", action = "Upload" },
                 constraints: new { httpMethod = new HttpMethodRouteConstraint("PUT") });
 
+            routes.MapRoute(
+                name: Routes.SymbolDownloadRouteName,
+                template: "api/download/symbols/{symbol}/{key}/{symbol2}",
+                defaults: new { controller = "Symbol", action = "Get" });
+
             return routes;
         }
 
