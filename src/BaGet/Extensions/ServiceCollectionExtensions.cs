@@ -44,6 +44,7 @@ namespace BaGet.Extensions
             services.AddTransient<IPackageService, PackageService>();
             services.AddTransient<IPackageIndexingService, PackageIndexingService>();
             services.AddTransient<IPackageDeletionService, PackageDeletionService>();
+            services.AddTransient<ISymbolIndexingService, SymbolIndexingService>();
             services.AddMirrorServices();
 
             services.ConfigureStorageProviders(configuration);
@@ -147,6 +148,30 @@ namespace BaGet.Extensions
                 }
             });
 
+            services.AddTransient<ISymbolStorageService>(provider =>
+            {
+                var storageOptions = provider
+                    .GetRequiredService<IOptions<BaGetOptions>>()
+                    .Value
+                    .Storage;
+
+                storageOptions.EnsureValid();
+
+                switch (storageOptions.Type)
+                {
+                    case StorageType.FileSystem:
+                        return provider.GetRequiredService<FileSymbolStorageService>();
+
+                    // TODO
+                    case StorageType.AzureBlobStorage:
+                        throw new NotImplementedException();
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unsupported storage service: {storageOptions.Type}");
+                }
+            });
+
             services.AddTransient(provider =>
             {
                 var options = provider
@@ -156,6 +181,17 @@ namespace BaGet.Extensions
                 options.EnsureValid();
 
                 return new FilePackageStorageService(options.Path);
+            });
+
+            services.AddTransient(provider =>
+            {
+                var options = provider
+                    .GetRequiredService<IOptions<FileSystemStorageOptions>>()
+                    .Value;
+
+                options.EnsureValid();
+
+                return new FileSymbolStorageService(options.SymbolPath);
             });
 
             services.AddBlobPackageStorageService();

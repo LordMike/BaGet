@@ -25,17 +25,17 @@ namespace BaGet.Core.Services
         };
 
         private readonly IPackageService _packages;
-        private readonly IPackageStorageService _storage;
+        private readonly ISymbolStorageService _storage;
         private readonly ILogger<SymbolIndexingService> _logger;
 
         public SymbolIndexingService(
             IPackageService packages,
-            IPackageStorageService storage,
+            ISymbolStorageService storage,
             ILogger<SymbolIndexingService> logger)
         {
             _packages = packages ?? throw new ArgumentNullException(nameof(packages));
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            _logger = logger ?? throw new ArgumentNullException(nameof(packages));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<SymbolIndexingResult> IndexAsync(Stream stream, CancellationToken cancellationToken)
@@ -68,9 +68,11 @@ namespace BaGet.Core.Services
 
                         using (var pdbStream = await symbolPackage.GetStreamAsync(symbolFile, cancellationToken))
                         {
-                            var pdbKey = GeneratePortablePDBKey(pdbStream, symbolFile);
+                            var pdbKey = BuildPortablePDBKey(pdbStream, symbolFile);
 
-                            // TODO: Save pdbStream using its pdbKey.
+                            pdbStream.Position = 0;
+
+                            await _storage.SavePortablePdbContentAsync(pdbKey, pdbStream, cancellationToken);
                         }
                     }
 
@@ -98,7 +100,7 @@ namespace BaGet.Core.Services
             return entries.Select(e => new FileInfo(e)).All(IsValidSymbolFileInfo);
         }
 
-        private string GeneratePortablePDBKey(Stream pdbStream, string pdbPath)
+        private string BuildPortablePDBKey(Stream pdbStream, string pdbPath)
         {
             // See: https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#portable-pdb-signature
             using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))

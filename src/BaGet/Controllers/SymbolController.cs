@@ -11,14 +11,12 @@ namespace BaGet.Controllers
     public class SymbolController : Controller
     {
         private readonly IAuthenticationService _authentication;
-        private readonly IPackageIndexingService _indexer;
+        private readonly ISymbolIndexingService _indexer;
         private readonly ILogger<SymbolController> _logger;
 
         public SymbolController(
             IAuthenticationService authentication,
-            IPackageIndexingService indexer,
-            IPackageService packages,
-            IPackageDeletionService deletionService,
+            ISymbolIndexingService indexer,
             ILogger<SymbolController> logger)
         {
             _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
@@ -49,13 +47,15 @@ namespace BaGet.Controllers
 
                     switch (result)
                     {
-                        case PackageIndexingResult.InvalidPackage:
+                        case SymbolIndexingResult.InvalidSymbolPackage:
                             HttpContext.Response.StatusCode = 400;
                             break;
 
-                        // TODO: Missing nupkg -> 404
+                        case SymbolIndexingResult.PackageNotFound:
+                            HttpContext.Response.StatusCode = 404;
+                            break;
 
-                        case PackageIndexingResult.Success:
+                        case SymbolIndexingResult.Success:
                             HttpContext.Response.StatusCode = 201;
                             break;
                     }

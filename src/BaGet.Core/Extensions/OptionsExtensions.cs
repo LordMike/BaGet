@@ -31,8 +31,13 @@ namespace BaGet.Core.Extensions
                 ? Path.Combine(Directory.GetCurrentDirectory(), "Packages")
                 : options.Path;
 
+            options.SymbolPath = string.IsNullOrEmpty(options.SymbolPath)
+                ? Path.Combine(Directory.GetCurrentDirectory(), "Symbols")
+                : options.SymbolPath;
+
             // Ensure the package storage directory exists
             Directory.CreateDirectory(options.Path);
+            Directory.CreateDirectory(options.SymbolPath);
         }
 
         public static void EnsureValid(this SearchOptions options)
