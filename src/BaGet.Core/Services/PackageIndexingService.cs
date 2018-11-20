@@ -70,6 +70,7 @@ namespace BaGet.Core.Services
             }
 
             // TODO: Add more package validations
+            // TODO: Call PackageArchiveReader.ValidatePackageEntriesAsync
             _logger.LogInformation(
                 "Validated package {PackageId} {PackageVersion}, persisting content to storage...",
                 package.Id,

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
+using NuGet.Packaging.Core;
 
 namespace BaGet.Core.Services
 {
@@ -44,6 +45,12 @@ namespace BaGet.Core.Services
             {
                 using (var symbolPackage = new PackageArchiveReader(stream, leaveStreamOpen: true))
                 {
+                    var pdbPaths = await GetSymbolPackagePdbPathsOrNullAsync(symbolPackage, cancellationToken);
+                    if (pdbPaths == null)
+                    {
+                        return SymbolIndexingResult.InvalidSymbolPackage;
+                    }
+
                     // Ensure a corresponding NuGet package exists.
                     var packageId = symbolPackage.NuspecReader.GetId();
                     var packageVersion = symbolPackage.NuspecReader.GetVersion();
@@ -54,26 +61,12 @@ namespace BaGet.Core.Services
                         return SymbolIndexingResult.PackageNotFound;
                     }
 
-                    var symbolPackageFiles = (await symbolPackage.GetFilesAsync(cancellationToken)).ToList();
-                    if (!AreSymbolFilesValid(symbolPackageFiles))
-                    {
-                        return SymbolIndexingResult.InvalidSymbolPackage;
-                    }
-
                     // TODO: Validate that all PDBs have a corresponding DLL. See: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L170
 
-                    foreach (var symbolFile in symbolPackageFiles)
+                    // Save all portable PDBs to storage.
+                    foreach (var pdbPath in pdbPaths)
                     {
-                        if (Path.GetExtension(symbolFile) != ".pdb") continue;
-
-                        using (var pdbStream = await symbolPackage.GetStreamAsync(symbolFile, cancellationToken))
-                        {
-                            var pdbKey = BuildPortablePDBKey(pdbStream, symbolFile);
-
-                            pdbStream.Position = 0;
-
-                            await _storage.SavePortablePdbContentAsync(pdbKey, pdbStream, cancellationToken);
-                        }
+                        await SavePortablePdb(symbolPackage, pdbPath, cancellationToken);
                     }
 
                     return SymbolIndexingResult.Success;
@@ -82,6 +75,31 @@ namespace BaGet.Core.Services
             catch
             {
                 return SymbolIndexingResult.InvalidSymbolPackage;
+            }
+        }
+
+        private async Task<IReadOnlyList<string>> GetSymbolPackagePdbPathsOrNullAsync(
+            PackageArchiveReader symbolPackage,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await symbolPackage.ValidatePackageEntriesAsync(cancellationToken);
+
+                var files = (await symbolPackage.GetFilesAsync(cancellationToken)).ToList();
+
+                // Ensure there are no unexpected file extensions within the symbol package.
+                if (!AreSymbolFilesValid(files))
+                {
+                    return null;
+                }
+
+                return files.Where(p => Path.GetExtension(p) == ".pdb").ToList();
+            }
+            catch (Exception)
+            {
+                // TODO: ValidatePackageEntries throws PackagingException
+                return null;
             }
         }
 
@@ -98,6 +116,18 @@ namespace BaGet.Core.Services
             }
 
             return entries.Select(e => new FileInfo(e)).All(IsValidSymbolFileInfo);
+        }
+
+        private async Task SavePortablePdb(PackageArchiveReader symbolPackage, string pdbPath, CancellationToken cancellationToken)
+        {
+            using (var pdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken))
+            {
+                var pdbKey = BuildPortablePDBKey(pdbStream, pdbPath);
+
+                pdbStream.Position = 0;
+
+                await _storage.SavePortablePdbContentAsync(pdbKey, pdbStream, cancellationToken);
+            }
         }
 
         private string BuildPortablePDBKey(Stream pdbStream, string pdbPath)
