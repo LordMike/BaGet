@@ -47,7 +47,7 @@ namespace BaGet.Extensions
 
             routes.MapRoute(
                 name: Routes.SymbolDownloadRouteName,
-                template: "api/download/symbols/{symbol}/{key}/{symbol2}",
+                template: "api/download/symbols/{file}/{signature}/{file2}",
                 defaults: new { controller = "Symbol", action = "Get" });
 
             return routes;

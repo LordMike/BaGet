@@ -27,12 +27,20 @@ namespace BaGet.Core.Services
             }
         }
 
-        public Task<Stream> GetPortablePdbContentStreamAsync(string key)
+        public Task<Stream> GetPortablePdbContentStreamOrNullAsync(string key)
         {
-            var path = GetPathForKey(key);
-            var result = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Stream result = null;
+            try
+            {
+                var path = GetPathForKey(key);
 
-            return Task.FromResult((Stream)result);
+                result = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            catch (FileNotFoundException)
+            {
+            }
+
+            return Task.FromResult(result);
         }
 
         private string GetPathForKey(string key)

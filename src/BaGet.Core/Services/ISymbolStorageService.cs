@@ -29,7 +29,7 @@ namespace BaGet.Core.Services
         /// Retrieve a portable PDB's content stream.
         /// </summary>
         /// <param name="key">The portable PDB's SSQP key.</param>
-        /// <returns>The portable PDB's stream.</returns>
-        Task<Stream> GetPortablePdbContentStreamAsync(string key);
+        /// <returns>The portable PDB's stream, or null if it does not exist.</returns>
+        Task<Stream> GetPortablePdbContentStreamOrNullAsync(string key);
     }
 }

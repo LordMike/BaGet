@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
+using BaGet.Core.Extensions;
 using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
@@ -72,8 +73,9 @@ namespace BaGet.Core.Services
                     return SymbolIndexingResult.Success;
                 }
             }
-            catch
+            catch (Exception e)
             {
+                _logger.LogError(e, "Unable to index symbol package due to exception");
                 return SymbolIndexingResult.InvalidSymbolPackage;
             }
         }
@@ -120,7 +122,8 @@ namespace BaGet.Core.Services
 
         private async Task SavePortablePdb(PackageArchiveReader symbolPackage, string pdbPath, CancellationToken cancellationToken)
         {
-            using (var pdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken))
+            using (var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken))
+            using (var pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync())
             {
                 var pdbKey = BuildPortablePDBKey(pdbStream, pdbPath);
 

@@ -72,11 +72,14 @@ namespace BaGet.Controllers
             }
         }
 
-        public async Task<IActionResult> Get(string pdbName, string pdbSignature)
+        public async Task<IActionResult> Get(string file, string signature)
         {
-            // TODO: There should be some validations that this pdb exists...
-            var key = $"{pdbName}/{pdbSignature}/{pdbName}";
-            var pdbStream = await _storage.GetPortablePdbContentStreamAsync(key);
+            var key = $"{file}/{signature}/{file}";
+            var pdbStream = await _storage.GetPortablePdbContentStreamOrNullAsync(key);
+            if (pdbStream == null)
+            {
+                return NotFound();
+            }
 
             return File(pdbStream, "application/octet-stream");
         }
