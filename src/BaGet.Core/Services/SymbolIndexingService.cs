@@ -139,12 +139,13 @@ namespace BaGet.Core.Services
             using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
             {
                 var pdbReader = pdbReaderProvider.GetMetadataReader();
+                var pdbId = new BlobContentId(pdbReader.DebugMetadataHeader.Id);
 
-                var pdbSignature = new BlobContentId(pdbReader.DebugMetadataHeader.Id).Guid;
+                var pdbSignature = pdbId.Guid.ToString("N").ToUpperInvariant();
                 var pdbFileName = Path.GetFileName(pdbPath).ToLowerInvariant();
-                var pdbAge = "FFFFFFFF";
+                var pdbAge = "ffffffff";
 
-                return $"{pdbFileName}/{pdbSignature.ToString("N")}{pdbAge}/{pdbFileName}";
+                return $"{pdbFileName}/{pdbSignature}{pdbAge}/{pdbFileName}";
             }
         }
     }
