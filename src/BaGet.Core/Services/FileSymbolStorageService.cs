@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -56,6 +57,20 @@ namespace BaGet.Core.Services
 
         private string GetPathForKey(string filename, string key)
         {
+            // Ensure the filename doesn't try to escape out of the current directory.
+            var tempPath = Path.GetDirectoryName(Path.GetTempPath());
+            var expandedPath = Path.GetDirectoryName(Path.Combine(tempPath, filename));
+            
+            if (expandedPath != tempPath)
+            {
+                throw new ArgumentException(nameof(filename));
+            }
+
+            if (!key.All(char.IsLetterOrDigit))
+            {
+                throw new ArgumentException(nameof(key));
+            }
+
             return Path.Combine(
                 _storePath,
                 filename.ToLowerInvariant(),

@@ -69,7 +69,13 @@ namespace BaGet.Core.Services
                         // PDBs have been extracted and validated sucessfully.
                         foreach (var pdbPath in pdbPaths)
                         {
-                            pdbs.Add(await ExtractPortablePdbAsync(symbolPackage, pdbPath, cancellationToken));
+                            var portablePdb = await ExtractPortablePdbAsync(symbolPackage, pdbPath, cancellationToken);
+                            if (portablePdb == null)
+                            {
+                                return SymbolIndexingResult.InvalidSymbolPackage;
+                            }
+
+                            pdbs.Add(portablePdb);
                         }
 
                         // Persist the portable PDBs to storage.
@@ -109,7 +115,8 @@ namespace BaGet.Core.Services
             }
             catch (Exception)
             {
-                // TODO: ValidatePackageEntries throws PackagingException
+                // TODO: ValidatePackageEntries throws PackagingException.
+                // Add better logging.
                 return null;
             }
         }
