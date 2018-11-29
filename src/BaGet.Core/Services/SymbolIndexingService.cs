@@ -6,6 +6,7 @@ using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 using BaGet.Core.Extensions;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Logging;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
@@ -62,15 +63,23 @@ namespace BaGet.Core.Services
                         return SymbolIndexingResult.PackageNotFound;
                     }
 
-                    // TODO: Validate that all PDBs have a corresponding DLL. See: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L170
-
-                    // Save all portable PDBs to storage.
-                    foreach (var pdbPath in pdbPaths)
+                    using (var pdbs = new PdbList())
                     {
-                        await SavePortablePdb(symbolPackage, pdbPath, cancellationToken);
-                    }
+                        // Extract the portable PDBs from the snupkg. Nothing is persisted until after all
+                        // PDBs have been extracted and validated sucessfully.
+                        foreach (var pdbPath in pdbPaths)
+                        {
+                            pdbs.Add(await ExtractPortablePdbAsync(symbolPackage, pdbPath, cancellationToken));
+                        }
 
-                    return SymbolIndexingResult.Success;
+                        // Persist the portable PDBs to storage.
+                        foreach (var pdb in pdbs)
+                        {
+                            await _storage.SavePortablePdbContentAsync(pdb.Filename, pdb.Key, pdb.Content, cancellationToken);
+                        }
+
+                        return SymbolIndexingResult.Success;
+                    }
                 }
             }
             catch (Exception e)
@@ -120,32 +129,72 @@ namespace BaGet.Core.Services
             return entries.Select(e => new FileInfo(e)).All(IsValidSymbolFileInfo);
         }
 
-        private async Task SavePortablePdb(PackageArchiveReader symbolPackage, string pdbPath, CancellationToken cancellationToken)
+        private async Task<PortablePdb> ExtractPortablePdbAsync(
+            PackageArchiveReader symbolPackage,
+            string pdbPath,
+            CancellationToken cancellationToken)
         {
-            using (var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken))
-            using (var pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync())
+            // TODO: Validate that the PDB has a corresponding DLL
+            // See: https://github.com/NuGet/NuGet.Jobs/blob/master/src/Validation.Symbols/SymbolsValidatorService.cs#L170
+            Stream pdbStream = null;
+            PortablePdb result = null;
+
+            try
             {
-                var pdbKey = BuildPortablePDBKey(pdbStream, pdbPath);
+                using (var rawPdbStream = await symbolPackage.GetStreamAsync(pdbPath, cancellationToken))
+                {
+                    pdbStream = await rawPdbStream.AsTemporaryFileStreamAsync();
 
-                pdbStream.Position = 0;
+                    string signature;
+                    using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
+                    {
+                        var reader = pdbReaderProvider.GetMetadataReader();
+                        var id = new BlobContentId(reader.DebugMetadataHeader.Id);
 
-                await _storage.SavePortablePdbContentAsync(pdbKey, pdbStream, cancellationToken);
+                        signature = id.Guid.ToString("N").ToUpperInvariant();
+                    }
+
+                    var fileName = Path.GetFileName(pdbPath).ToLowerInvariant();
+                    var key = $"{signature}ffffffff";
+
+                    result = new PortablePdb(fileName, key, pdbStream);
+                }
             }
+            finally
+            {
+                if (result == null)
+                {
+                    pdbStream?.Dispose();
+                }
+            }
+
+            return result;
         }
 
-        private string BuildPortablePDBKey(Stream pdbStream, string pdbPath)
+        private class PortablePdb : IDisposable
         {
-            // See: https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#portable-pdb-signature
-            using (var pdbReaderProvider = MetadataReaderProvider.FromPortablePdbStream(pdbStream, MetadataStreamOptions.LeaveOpen))
+            public PortablePdb(string filename, string key, Stream content)
             {
-                var pdbReader = pdbReaderProvider.GetMetadataReader();
-                var pdbId = new BlobContentId(pdbReader.DebugMetadataHeader.Id);
+                Filename = filename;
+                Key = key;
+                Content = content;
+            }
 
-                var pdbSignature = pdbId.Guid.ToString("N").ToUpperInvariant();
-                var pdbFileName = Path.GetFileName(pdbPath).ToLowerInvariant();
-                var pdbAge = "ffffffff";
+            public string Filename { get; }
+            public string Key { get; }
+            public Stream Content { get; }
 
-                return $"{pdbFileName}/{pdbSignature}{pdbAge}/{pdbFileName}";
+            public void Dispose() => Content.Dispose();
+        }
+
+        private class PdbList : List<PortablePdb>, IDisposable
+        {
+            public void Dispose()
+            {
+                foreach (var pdb in this)
+                {
+                    pdb.Dispose();
+                }
             }
         }
     }

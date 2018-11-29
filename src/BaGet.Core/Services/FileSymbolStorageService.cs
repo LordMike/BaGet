@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,23 +17,35 @@ namespace BaGet.Core.Services
             _storePath = storePath ?? throw new ArgumentNullException(nameof(storePath));
         }
 
-        public async Task SavePortablePdbContentAsync(string key, Stream pdbStream, CancellationToken cancellationToken)
+        public async Task SavePortablePdbContentAsync(
+            string filename,
+            string key,
+            Stream pdbStream,
+            CancellationToken cancellationToken)
         {
-            var path = GetPathForKey(key);
+            var path = GetPathForKey(filename, key);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+
             using (var fileStream = File.Open(path, FileMode.CreateNew))
             {
                 await pdbStream.CopyToAsync(fileStream, DefaultCopyBufferSize, cancellationToken);
             }
         }
 
-        public Task<Stream> GetPortablePdbContentStreamOrNullAsync(string key)
+        public Task<Stream> GetPortablePdbContentStreamOrNullAsync(string filename, string key)
         {
             Stream result = null;
             try
             {
-                var path = GetPathForKey(key);
-
-                result = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                result = File.Open(
+                    GetPathForKey(filename, key),
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read);
+            }
+            catch (DirectoryNotFoundException)
+            {
             }
             catch (FileNotFoundException)
             {
@@ -43,18 +54,12 @@ namespace BaGet.Core.Services
             return Task.FromResult(result);
         }
 
-        private string GetPathForKey(string key)
+        private string GetPathForKey(string filename, string key)
         {
-            string fileName;
-            var bytes = Encoding.UTF8.GetBytes(key);
-            using (var hash = System.Security.Cryptography.SHA512.Create())
-            {
-                var hashedBytes = hash.ComputeHash(bytes);
-
-                fileName = BitConverter.ToString(hashedBytes).Replace("-", "");
-            }
-
-            return Path.Combine(_storePath, fileName);
+            return Path.Combine(
+                _storePath,
+                filename.ToLowerInvariant(),
+                key.ToLowerInvariant());
         }
     }
 }

@@ -72,10 +72,9 @@ namespace BaGet.Controllers
             }
         }
 
-        public async Task<IActionResult> Get(string file, string signature)
+        public async Task<IActionResult> Get(string file, string key)
         {
-            var key = $"{file}/{signature}/{file}";
-            var pdbStream = await _storage.GetPortablePdbContentStreamOrNullAsync(key);
+            var pdbStream = await _storage.GetPortablePdbContentStreamOrNullAsync(file, key);
             if (pdbStream == null)
             {
                 return NotFound();
